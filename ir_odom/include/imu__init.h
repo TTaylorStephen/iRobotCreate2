@@ -11,6 +11,7 @@
 #include "ros/ros.h"
 #include "geometry_msgs/Accel.h"
 #include <math.h>
+#include "std_msgs/Float32MultiArray.h"
 
 #define BAUD_RATE 115200
 #define IMU_ADD 0x68 //MPU9250 register address
@@ -126,7 +127,7 @@ class mpu9255{
 
 	private:
 		ros::NodeHandle nh;
-		ros::Publisher accel_data;
+		ros::Publisher imu_pub;
 
 
 };

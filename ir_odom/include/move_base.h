@@ -28,12 +28,14 @@ class move_base{
         double pub_vel(double vl_cmd, double vr_cmd);
         void vel_plan(const ros::TimerEvent&);
         void count_read(const std_msgs::Int32MultiArray::ConstPtr& count);
+        void imu_read(const std_msgs::Float32MultiArray::ConstPtr& state);
 
     private:
         ros::NodeHandle nh_;
         ros::Publisher cmd_vel_pub;
         ros::Subscriber count_sub;
         ros::Subscriber query_sub;
+        ros::Subscriber imu_sub;
 
 };
 

@@ -7,6 +7,8 @@ float a_scale, g_scale;
 float a_res=2; //+-g
 float g_res=250; //deg/sec
 float dt = 0.05; //200Hz sample rate or 0.05s/sample)
+std::vector<float> imu_data(11);
+std_msgs::Float32MultiArray list;
 
 mpu9255::mpu9255(){
 	
@@ -21,7 +23,7 @@ mpu9255::mpu9255(){
 	init_ak_slave();
 	
 	//publisher for 
-	accel_data=nh.advertise<geometry_msgs::Accel>("/accel_data",10);
+    imu_pub=nh.advertise<std_msgs::Float32MultiArray>("/imu_data",30);
 }
 
 
@@ -265,7 +267,13 @@ float mpu9255::temp_read(){
 	temp_raw=((int16_t)raw_data[0] << 8) | raw_data[1];
 	temp_c=temp_raw/333.87 + 21;
 	temp_f=temp_c*1.8+32.0;
-	printf("temp in C = %3f, temp in F = %3f\n", temp_c, temp_f);
+	ROS_INFO("temp in C = %3f, temp in F = %3f\n", temp_c, temp_f);
+	imu_data[0]=temp_c;
+	imu_data[1]=temp_f;
+
+	
+	list.data=imu_data;
+	imu_pub.publish(list);
 }
 
 int mpu9255::mpu_init(uint8_t g_scale, uint8_t a_scale){
@@ -340,7 +348,6 @@ uint8_t x_hl[2], y_hl[2], z_hl[2];
 int16_t x_accel_raw, y_accel_raw, z_accel_raw;
 float xi_accel, yi_accel, zi_accel, x_vel, y_vel;
 float x_accel, y_accel, z_accel,x_accel1, y_accel1, z_accel1;
-
 int mpu9255::accel_read(){
 	
 	
@@ -370,16 +377,11 @@ int mpu9255::accel_read(){
 		ROS_INFO("x accel: %.3f m/s, y accel: %.3f m/s, z accel: %.3f m/s", xi_accel, yi_accel, zi_accel);
 	
 		//publish linear accels to ros	
-		_accel.linear.x=xi_accel;
-		_accel.linear.y=yi_accel;
-		_accel.linear.z=zi_accel;
-		accel_data.publish(_accel);
-		
-		//calculate velocity from sample rate of 200hz (0.05s)
-		vx=xi_accel*dt;
-		vy=yi_accel*dt;
-		vz=zi_accel*dt;
-		ROS_INFO("x vel = %3f, y vel = %3f, z vel = %3f",vx, vy, vz); 
+		imu_data[2]=xi_accel;
+		imu_data[3]=yi_accel;
+		imu_data[4]=zi_accel;
+		list.data=imu_data;
+		imu_pub.publish(list);
 
 	return 0;
 }
@@ -429,15 +431,11 @@ int mpu9255::gyro_read(){
 	//printf("-------------------------------------------------------------------------\n");
 	
 	//publish angular accels to ros
-	_accel.angular.x=wx;
-	_accel.angular.y=wy;
-	_accel.angular.z=wz;
-	
-	//yaw calc
-	yaw=wz*dt;
-	ROS_INFO("change in heading is %3f degrees", yaw);
-	
-	accel_data.publish(_accel);
+	imu_data[5]=wx;
+	imu_data[6]=wy;
+	imu_data[7]=wz;
+	list.data=imu_data;
+	imu_pub.publish(list);
 	
 	return 0;
 }
@@ -527,7 +525,7 @@ void mpu9255::init_ak_slave(){
 	mag_calibration[0] = (float)(raw_data[0]-128)/256.0f + 1.0f; //return x_axis sensitivity adjustment values 
 	mag_calibration[1] = (float)(raw_data[1]-128)/256.0f + 1.0f;
 	mag_calibration[2] = (float)(raw_data[2]-128)/256.0f + 1.0f;
-	printf("raw mag calibration data = %3f, %3f, %3f\n\n", mag_calibration[0], mag_calibration[1], mag_calibration[2]);
+	//printf("raw mag calibration data = %3f, %3f, %3f\n\n", mag_calibration[0], mag_calibration[1], mag_calibration[2]);
 
 	write_byte(IMU_ADD, I2C_SLV0_ADD, AK8963_ADD);//set the i2c address to ak8963 and set for write
 	write_byte(IMU_ADD, I2C_SLV0_REG, AK_CTRL); //i2c slave 0 register from where to begin data transfer
@@ -563,6 +561,11 @@ int mpu9255::mag_read(){
 
 	}
 ROS_INFO("x magnetic field is = %3f uG, y magnetic field is = %3f uG, z magnetic field is = %3f uG", mag_xyz[0]*mag_calibration[0]*set_m_res(MFS_16BITS), mag_xyz[1]*set_m_res(MFS_16BITS), mag_xyz[2]*set_m_res(MFS_16BITS));
+	imu_data[8]=mag_xyz[0];
+	imu_data[9]=mag_xyz[1];
+	imu_data[10]=mag_xyz[2];
+	list.data=imu_data;
+	imu_pub.publish(list);
 
 	return 0;
 }
@@ -572,19 +575,18 @@ int mpu_id, ak_id;
 int main(int argc, char* argv[]){
 	
 	ros::init(argc, argv, "imu_accel_data"); 
+	
 	mpu9255 nine_axis;
 	mpu_id=nine_axis.who_am_i();
 	ak_id=nine_axis.who_am_i_ak8963();
 
-	ros::Rate lr(10);
+	ros::Rate lr(1);
 	while(ros::ok()){
 		nine_axis.temp_read();
 		nine_axis.accel_read();
 		nine_axis.gyro_read();
 		nine_axis.mag_read();
 		
-		usleep(100000);
-		lr.sleep();
 		ros::spinOnce();
 	}
 	return 0;
