@@ -29,6 +29,7 @@ class move_base{
         void vel_plan(const ros::TimerEvent&);
         void count_read(const std_msgs::Int32MultiArray::ConstPtr& count);
         void imu_read(const std_msgs::Float32MultiArray::ConstPtr& state);
+        void state_calcs();
 
     private:
         ros::NodeHandle nh_;

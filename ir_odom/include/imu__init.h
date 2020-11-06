@@ -124,6 +124,7 @@ class mpu9255{
 		void calibrate_mpu();
 		uint8_t g_scale;
 		uint8_t a_scale;
+		
 
 	private:
 		ros::NodeHandle nh;

@@ -580,13 +580,13 @@ int main(int argc, char* argv[]){
 	mpu_id=nine_axis.who_am_i();
 	ak_id=nine_axis.who_am_i_ak8963();
 
-	ros::Rate lr(1);
+
 	while(ros::ok()){
 		nine_axis.temp_read();
 		nine_axis.accel_read();
 		nine_axis.gyro_read();
 		nine_axis.mag_read();
-		
+	
 		ros::spinOnce();
 	}
 	return 0;

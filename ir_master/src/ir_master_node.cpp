@@ -49,7 +49,7 @@ ir_rw::ir_rw(){
 	wheel_vel_sub=nh.subscribe("/wheel_vel", 30, &ir_rw::drive_robot, this);
 
 	//timer to request sensor packets every 0.05 seconds
-	packet_timer=nh.createTimer(ros::Duration(1),&ir_rw::get_packets,this);
+	packet_timer=nh.createTimer(ros::Duration(0.05),&ir_rw::get_packets,this);
 
 }
 
@@ -350,12 +350,6 @@ int ir_rw::data_query(){
 	list.data=query_list;
 	get_states.publish(list);
 
-	t2 = ros::Time::now().toSec();
-	if(t1>0){
-		dt = t2-t1;
-	}
-	tt+=dt;
-
 	//flush input and output buffer to ensure everything has been read/written
 	tcflush(fd, TCIOFLUSH);
 
@@ -377,7 +371,7 @@ void ir_rw::get_packets(const ros::TimerEvent&){
 }
 
 int main(int argc, char **argv){
-	ros::Rate r(1);
+
 
 	ros::init(argc,argv,"serial_query");
 	ir_rw read_robot; //object for reading data packets
@@ -385,7 +379,6 @@ int main(int argc, char **argv){
 	//call subscribers equivalent of ros::spin()
 	while(ros::ok()){
 		ros::spinOnce();
-		r.sleep();
 	}
     return 0;
 }

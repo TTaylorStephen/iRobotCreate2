@@ -1,8 +1,7 @@
 #include "move_base.h"
 
 int bump_drop, l_cliff, fl_cliff, r_cliff, fr_cliff, l_light, fl_light, cl_light, cr_light, fr_light, r_light;
-double t1, t2, dt; 
-
+double t1, t2;
 std::vector<float> cmd_vel(2);
 
 move_base::move_base(){
@@ -70,7 +69,17 @@ void move_base::imu_read(const std_msgs::Float32MultiArray::ConstPtr& state){
     my=state->data[9];
     mz=state->data[10];
 
-    ROS_INFO("tempC=%3f, tempF=%3f\n, ax=%3f, ay=%3f, az=%3f\n, wx=%3f, wy=%3f, wz=%3f\n, mx=%3f, my=%3f, mz=%3f\n", tc,tf,ax,ay,az,wx,wy,wz,mx,my,mz);
+    pub_vel(0.2,0.2);
+    //ROS_INFO("tempC=%3f, tempF=%3f\n\n, ax=%3f, ay=%3f, az=%3f\n\n, wx=%3f, wy=%3f, wz=%3f\n\n, mx=%3f, my=%3f, mz=%3f\n\n", tc,tf,ax,ay,az,wx,wy,wz,mx,my,mz);
+}
+
+float vdx, vdy, vdz, dtheta, dt=0.05, delt_heading;
+void move_base::state_calcs(){
+    vdx=(ax*dt);
+    vdy=(ay*dt);
+    vdx=(ay*dt);
+    delt_heading=wz*dt;
+    ROS_INFO("change in x velocity=%3f\n, change in y velocity=%3f\n, change in z velocity=%3f\n, heading=%3f", vdx, vdy, vdz, delt_heading);
 }
 
 double move_base::pub_vel(double vl_cmd,double vr_cmd){
@@ -79,6 +88,7 @@ double move_base::pub_vel(double vl_cmd,double vr_cmd){
     std_msgs::Float32MultiArray LRvel;
     LRvel.data=cmd_vel;
     cmd_vel_pub.publish(LRvel);
+    state_calcs();
 }
 
 int main(int argc, char **argv){
