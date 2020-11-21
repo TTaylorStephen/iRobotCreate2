@@ -32,7 +32,9 @@ void move_base::query_read(const std_msgs::Int32MultiArray::ConstPtr& query_arra
 float l_tot_dist_m, l_tot_dist_mm, r_tot_dist_m, r_tot_dist_mm, l_dist_m, l_dist_mm, r_dist_m, r_dist_mm, total_dist;
 int l_count, l_count1, r_count, r_count1, ll_count, rl_count, i;
  void move_base::count_read(const std_msgs::Int32MultiArray::ConstPtr& count){ 
-     
+ 
+    l_count1=l_count;
+    r_count1=r_count;
     //total distance
     l_count=count->data[0];
     r_count=count->data[1];
@@ -52,7 +54,7 @@ int l_count, l_count1, r_count, r_count1, ll_count, rl_count, i;
     r_dist_m=r_dist_mm/1000;
     // ROS_INFO("dr is: %f",l_dist_mm);
     // ROS_INFO("dl is: %f",r_dist_mm);
-
+        
  }
 
 float tc,tf,ax,ay,az,wx,wy,wz,mx,my,mz;
@@ -68,18 +70,40 @@ void move_base::imu_read(const std_msgs::Float32MultiArray::ConstPtr& state){
     mx=state->data[8];
     my=state->data[9];
     mz=state->data[10];
-
-    pub_vel(0.2,0.2);
+	
     //ROS_INFO("tempC=%3f, tempF=%3f\n\n, ax=%3f, ay=%3f, az=%3f\n\n, wx=%3f, wy=%3f, wz=%3f\n\n, mx=%3f, my=%3f, mz=%3f\n\n", tc,tf,ax,ay,az,wx,wy,wz,mx,my,mz);
 }
 
-float vdx, vdy, vdz, dtheta, dt=0.05, delt_heading;
+float vdx, vdy, vdz, dtheta, dt=0.05, d_theta, tot_theta, xc, xp, x, dx, yc, yp, y, dy;
 void move_base::state_calcs(){
+	
+	//calculate velocity and heading
     vdx=(ax*dt);
     vdy=(ay*dt);
-    vdx=(ay*dt);
-    delt_heading=wz*dt;
-    ROS_INFO("change in x velocity=%3f\n, change in y velocity=%3f\n, change in z velocity=%3f\n, heading=%3f", vdx, vdy, vdz, delt_heading);
+    vdz=(az*dt);
+    d_theta=wz*dt;
+    tot_theta+=d_theta;
+    
+    //sum x increments
+    xp=xc;
+    xc=(vdx*(cos(d_theta*PI/180)));
+    dx=xc-xp;
+    x+=dx;
+
+	//sum y increments
+    yp=yc;
+    yc=(vdy*(sin(d_theta*PI/180)));
+    dy=yc-yp;
+    y+=dy;
+
+	//if wheels stop reset 
+	for(int i; i<5; i++){
+		if (l_count==l_count1 && r_count==r_count1){
+			tot_theta=0, x=0, y=0; 
+		}
+	}
+		
+    ROS_INFO("vdx=%3f, vdy=%3f, vdz=%3f,\n heading=%3f, x position=%3f, y position=%3f\n", vdx, vdy, vdz, tot_theta, x, y);
 }
 
 double move_base::pub_vel(double vl_cmd,double vr_cmd){
@@ -91,10 +115,21 @@ double move_base::pub_vel(double vl_cmd,double vr_cmd){
     state_calcs();
 }
 
+void move_base::nav_plan(){
+	if(l_tot_dist_m<1){	
+		pub_vel(-0.1,-0.1);
+	}
+	else{
+		pub_vel(0,0);
+	}
+}
+	
+
 int main(int argc, char **argv){
     ros::init(argc, argv, "move_the_base");       
     move_base plan;
     while(ros::ok()){
+   		plan.nav_plan();
     	ros::spinOnce();
     } 
     return 0;

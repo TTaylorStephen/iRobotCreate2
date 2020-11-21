@@ -1,4 +1,5 @@
 <launch>
-	<!--node pkg="ir_odom" type="imu_init_node" name="imu" output="screen" / !-->
+	<node pkg="ir_odom" type="imu_init_node" name="imu" output="screen" />
 	<node pkg="ir_odom" type="move_base_node" name="move_base_node" output="screen" />
+	<node pkg="ir_master" type="ir_master_node" name="ir_master_node" output="screen" />
 </launch>

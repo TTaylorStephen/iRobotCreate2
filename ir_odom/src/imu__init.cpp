@@ -247,6 +247,8 @@ void mpu9255::calibrate_mpu(){
 	final_data[0] = (float)accel_bias[0]/(float)accel_sensitivity;
 	final_data[1] = (float)accel_bias[1]/(float)accel_sensitivity;
 	final_data[2] = (float)accel_bias[2]/(float)accel_sensitivity;
+	
+
 }
 
 	
@@ -267,7 +269,7 @@ float mpu9255::temp_read(){
 	temp_raw=((int16_t)raw_data[0] << 8) | raw_data[1];
 	temp_c=temp_raw/333.87 + 21;
 	temp_f=temp_c*1.8+32.0;
-	ROS_INFO("temp in C = %3f, temp in F = %3f\n", temp_c, temp_f);
+	//ROS_INFO("temp in C = %3f, temp in F = %3f\n", temp_c, temp_f);
 	imu_data[0]=temp_c;
 	imu_data[1]=temp_f;
 
@@ -364,7 +366,7 @@ int mpu9255::accel_read(){
 		y_hl[0]=read_byte(IMU_ADD, ACCEL_YOUT_L);
 		y_hl[1]=read_byte(IMU_ADD, ACCEL_YOUT_H);
 		y_accel_raw=(y_hl[1]<<8)|y_hl[0];
-		yi_accel=y_accel_raw*GRAVITY/16384;
+		yi_accel=(y_accel_raw*GRAVITY/16384)+0.59;
 
 		//read z acceleration
 	 	z_hl[0]=read_byte(IMU_ADD, ACCEL_ZOUT_L);
@@ -427,7 +429,7 @@ int mpu9255::gyro_read(){
 	wy=(float)gyro[1]/gyro_sensitivity;
 	wz=(float)gyro[2]/gyro_sensitivity;
 	
-	ROS_INFO("x ang rate: %.5f deg/s, y ang rate: %.5f deg/s, z ang rate: %.5f deg/s", wx, wy, wz);
+	//ROS_INFO("x ang rate: %.5f deg/s, y ang rate: %.5f deg/s, z ang rate: %.5f deg/s", wx, wy, wz);
 	//printf("-------------------------------------------------------------------------\n");
 	
 	//publish angular accels to ros
@@ -560,7 +562,7 @@ int mpu9255::mag_read(){
 		mag_xyz[2]=((int16_t)mag_raw[5]<<8) | mag_raw[4];
 
 	}
-ROS_INFO("x magnetic field is = %3f uG, y magnetic field is = %3f uG, z magnetic field is = %3f uG", mag_xyz[0]*mag_calibration[0]*set_m_res(MFS_16BITS), mag_xyz[1]*set_m_res(MFS_16BITS), mag_xyz[2]*set_m_res(MFS_16BITS));
+//ROS_INFO("x magnetic field is = %3f uG, y magnetic field is = %3f uG, z magnetic field is = %3f uG", mag_xyz[0]*mag_calibration[0]*set_m_res(MFS_16BITS), mag_xyz[1]*set_m_res(MFS_16BITS), mag_xyz[2]*set_m_res(MFS_16BITS));
 	imu_data[8]=mag_xyz[0];
 	imu_data[9]=mag_xyz[1];
 	imu_data[10]=mag_xyz[2];

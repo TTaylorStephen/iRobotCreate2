@@ -12,6 +12,7 @@
 #include <boost/bind.hpp>
 #include "std_msgs/Header.h"
 #include "geometry_msgs/Accel.h"
+#include "math.h"
 
 #define PI 3.141592653589793238463
 #define WHEEL_DIAMETER 72 //mm
@@ -30,6 +31,7 @@ class move_base{
         void count_read(const std_msgs::Int32MultiArray::ConstPtr& count);
         void imu_read(const std_msgs::Float32MultiArray::ConstPtr& state);
         void state_calcs();
+        void nav_plan();
 
     private:
         ros::NodeHandle nh_;

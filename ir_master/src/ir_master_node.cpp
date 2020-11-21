@@ -29,22 +29,22 @@ ir_setup::~ir_setup(){
 ir_rw::ir_rw(){
 
 	//indidual sensors
-	bump_drop_state=nh.advertise<std_msgs::Int32>("/bump_state",30);
-	l_cliff_state=nh.advertise<std_msgs::Int32>("/l_cliff_state",30);
-	r_cliff_state=nh.advertise<std_msgs::Int32>("/r_cliff_state",30);
-	fl_cliff_state=nh.advertise<std_msgs::Int32>("/fl_cliff_state",30);
-	fr_cliff_state=nh.advertise<std_msgs::Int32>("/fr_cliff_state",30);
-	l_light_state=nh.advertise<std_msgs::Int32>("/l_light_state",30);
-	fl_light_state=nh.advertise<std_msgs::Int32>("/fl_light_state",30);
-	cl_light_state=nh.advertise<std_msgs::Int32>("/cl_light_state", 30);
-	cr_light_state=nh.advertise<std_msgs::Int32>("/cr_light_state", 30);
-	fr_light_state=nh.advertise<std_msgs::Int32>("/fr_light_state", 30);
-	r_light_state=nh.advertise<std_msgs::Int32>("/r_light_state", 30);
+	bump_drop_state=nh.advertise<std_msgs::Int32>("/bump",30);
+	l_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/left",30);
+	r_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/right",30);
+	fl_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/front_left",30);
+	fr_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/front_right",30);
+	l_light_state=nh.advertise<std_msgs::Int32>("/light/left",30);
+	fl_light_state=nh.advertise<std_msgs::Int32>("/light/front_left",30);
+	cl_light_state=nh.advertise<std_msgs::Int32>("/light/center_left", 30);
+	cr_light_state=nh.advertise<std_msgs::Int32>("/light/center_right", 30);
+	fr_light_state=nh.advertise<std_msgs::Int32>("/light/front_right", 30);
+	r_light_state=nh.advertise<std_msgs::Int32>("/light/right", 30);
 
 	//arrays of sensor data
 	get_states=nh.advertise<std_msgs::Int32MultiArray>("/query_list",30);
 	encoder_state=nh.advertise<std_msgs::Int32MultiArray>("/total_count", 30);
-
+	
 	//subscribes to wheel count and drives robot
 	wheel_vel_sub=nh.subscribe("/wheel_vel", 30, &ir_rw::drive_robot, this);
 

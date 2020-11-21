@@ -56,20 +56,21 @@ class ir_rw{
 
 		ros::Publisher bump_drop_state; 
 		ros::Publisher l_cliff_state;
-        ros::Publisher r_cliff_state;
+        	ros::Publisher r_cliff_state;
 		ros::Publisher fl_cliff_state; 
 		ros::Publisher fr_cliff_state;
-		ros::Publisher encoder_state;
+		
+		
 
-        ros::Publisher l_light_state;
-        ros::Publisher fl_light_state;
+        	ros::Publisher l_light_state;
+        	ros::Publisher fl_light_state;
 		ros::Publisher cl_light_state;
 		ros::Publisher cr_light_state;
 		ros::Publisher fr_light_state;
 		ros::Publisher r_light_state;
 
         ros::Publisher get_states;
-
+	ros::Publisher encoder_state;
         ros::Subscriber wheel_vel_sub;
         ros::Timer count_timer;
         ros::Timer packet_timer;
