@@ -12,6 +12,7 @@
 #include <string.h>
 #include "std_msgs/Float32MultiArray.h"
 #include "ros/ros.h"
+#include <sys/ioctl.h>
 
 #define BAUD_RATE B115200
 int fd; 
@@ -20,7 +21,7 @@ int fd;
 class ir_setup{
 
     public: 
-        void drive_robot(const std_msgs::Float32MultiArray::ConstPtr& wheel_vel);
+
         int init(const char* device);
         int start_io();
         int stop_io();
