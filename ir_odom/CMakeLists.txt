@@ -2,46 +2,41 @@ cmake_minimum_required(VERSION 2.8.3)
 project(ir_odom)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11)
+add_compile_options(-std=c++11 -std=c++14)
 
 ## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
-find_package(catkin REQUIRED roscpp std_msgs geometry_msgs rospy rqt_plot)
+find_package(catkin REQUIRED COMPONENTS roscpp std_msgs geometry_msgs rospy rqt_plot message_generation)
 
-catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES ir_odom
-#  CATKIN_DEPENDS other_catkin_pkg
-#  DEPENDS system_lib
+
+## Generate messages in the 'msg' folder
+add_message_files(
+	FILES
+	Euler.msg
+	Magnet.msg
 )
 
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+## Generate added messages and services with any dependencies listed here
+generate_messages(
+	DEPENDENCIES
+	std_msgs
+)
 
+catkin_package( 
+	CATKIN_DEPENDS message_runtime
+)
 
 include_directories(${catkin_INCLUDE_DIRS}
 	${PROJECT_SOURCE_DIR}/include
 	${Python2_INCLUDE_DIRS}
 	${Python2_NumPy_INCLUDE_DIRS})
 	
-##add_executable(odom_node src/odom_node.cpp)
-##add_dependencies(odom_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-##target_link_libraries(odom_node ${catkin_LIBRARIES})
-
 add_executable(move_base_node src/move_base_node.cpp)
 add_dependencies(move_base_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(move_base_node ${catkin_LIBRARIES})
 
-add_executable(imu_init_node src/imu__init.cpp)
+add_executable(imu_init_node src/mpu9250_setup src/mpu9250_main.cpp src/ahrs.cpp)
 add_dependencies(imu_init_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(imu_init_node ${catkin_LIBRARIES})
-
-
-## Uncomment this if the package has a setup.py. This macro ensures
-## modules and global scripts declared therein get installed
-## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-# catkin_python_setup()
 
 ################################################
 ## Declare ROS messages, services and actions ##
@@ -67,12 +62,6 @@ target_link_libraries(imu_init_node ${catkin_LIBRARIES})
 ##   * uncomment the generate_messages entry below
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
-## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -88,11 +77,7 @@ target_link_libraries(imu_init_node ${catkin_LIBRARIES})
 #   Action2.action
 # )
 
-## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##

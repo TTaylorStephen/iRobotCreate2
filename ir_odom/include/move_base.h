@@ -1,7 +1,7 @@
 #ifndef move_base_h
 #define move_base_h
 
-
+#include <iostream>
 #include "std_msgs/Float32MultiArray.h"
 #include "std_msgs/Int32MultiArray.h"
 #include "ros/ros.h"
@@ -18,6 +18,7 @@
 #define WHEEL_DIAMETER 72 //mm
 #define RESOLUTION 508.8 // counts/rev
 #define DT_RADIUS 117.5 //mm
+#define WHEEL_BASE 235.0 //mm
 
 class move_base{
 
@@ -26,7 +27,7 @@ class move_base{
         void encoder_vel(const std_msgs::Float32MultiArray::ConstPtr& odom_array);
         void query_read(const std_msgs::Int32MultiArray::ConstPtr& query_array);
         void imu_read(const geometry_msgs::Accel::ConstPtr& _accel);
-        double pub_vel(double vl_cmd, double vr_cmd);
+        float pub_vel(float vl_cmd, float vr_cmd);
         void vel_plan(const ros::TimerEvent&);
         void count_read(const std_msgs::Int32MultiArray::ConstPtr& count);
         void imu_read(const std_msgs::Float32MultiArray::ConstPtr& state);

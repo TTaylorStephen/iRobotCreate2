@@ -1,17 +1,23 @@
-#ifndef imu__init_h
-#define imu__init_h
+#ifndef MPU9250_H
+#define MPU9250_H
 
-#include <linux/i2c-dev.h>
-#include <i2c/smbus.h>
+
+#include <math.h>
 #include <fcntl.h>
-#include <iostream>
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <termios.h>
+
+#include <iostream>
+#include <vector>
+
+#include <linux/i2c-dev.h>
+#include <i2c/smbus.h>
 #include "ros/ros.h"
 #include "geometry_msgs/Accel.h"
-#include <math.h>
 #include "std_msgs/Float32MultiArray.h"
+#include <ir_odom/Euler.h>
+#include <ir_odom/Magnet.h>
 
 #define BAUD_RATE 115200
 #define IMU_ADD 0x68 //MPU9250 register address
@@ -80,14 +86,14 @@
 #define AK_HZL 0x07
 #define AK_HZH 0x08
 #define AK_ST2 0x09
-#define AK_CTRL 0x0A
-#define AK_CTRL2 0x0B 
+#define AK_CNTL 0x0A
+#define AK_CNTL2 0x0B 
 #define AK_ASAX 0x10
 #define AK_ASAY 0x11
 #define AK_ASAZ 0x12
 #define SMPLRT_DIV 0x19
 
-#define GRAVITY 9.80665
+
 #define AFS_2G 0
 #define AFS_4G 1
 #define AFS_8G 2
@@ -99,38 +105,60 @@
 #define MFS_14BITS 0
 #define MFS_16BITS 1
 
-
-class mpu9255{
-
-	public:
-		mpu9255();
-		int imu_init();
-		uint8_t read_byte(uint8_t dev_add, uint8_t reg_add);
-		float accel_offset(float accel, float size);
-		int accel_read();
-		int gyro_read();
-		float avg(float ang_accel);
-		float RMS(float data);
-		uint8_t who_am_i();
-		uint8_t write_byte(uint8_t dev_add, uint8_t reg_add, uint8_t data);
-		uint8_t who_am_i_ak8963();
-		float set_m_res(uint8_t mag_scale);
-		uint8_t read_bytes(uint8_t dev_add, uint8_t num_bytes, uint8_t reg_add, uint8_t * buf);
-		int mag_read();
-		void init_ak();
-		int mpu_init(uint8_t g_scale, uint8_t a_scale);
-		void init_ak_slave();
-		float temp_read();
-		void calibrate_mpu();
-		uint8_t g_scale;
-		uint8_t a_scale;
-		
-
-	private:
-		ros::NodeHandle nh;
-		ros::Publisher imu_pub;
+#define GRAVITY 9.80665
+#define PI 3.14159265359
 
 
-};
+namespace adc{
+
+	class mpu9250{
+
+		public:
+			mpu9250();
+			uint8_t idMPU9250();
+			uint8_t idAK8963();
+			int imuInit();
+			int fd;
+			
+			float getMres(uint8_t mscale);
+			float getAres(uint8_t ascale);
+			float getGres(uint8_t gscale);
+			
+			int16_t tempRead();	
+			void mpu9250ReadAll(std::vector<int16_t> &destination);
+			void accelRead(int16_t *destination);
+			void gyroRead(int16_t *destination);	
+			void magRead(int16_t *destination);
+			void readAll();
+			
+			
+			void mpuInit(uint8_t g_scale, uint8_t a_scale, uint8_t a_rate);
+			void initAKslave(uint8_t m_scale, uint8_t m_rate, float * mag_calibration);
+
+			void calibrateMPU(float *dest1, float *dest2);
+			void calibrateMag(float *dest1, float *dest2);		
+			void reset();
+
+			uint8_t readByte(uint8_t dev_add, uint8_t reg_add);
+			uint8_t readBytes(uint8_t dev_add, uint8_t num_bytes, uint8_t reg_add, uint8_t * buf);
+			uint8_t writeByte(uint8_t dev_add, uint8_t reg_add, uint8_t data);
+			void delay(auto time_ms);
+			 __attribute__((optimize("O3"))) void MadgwickQuaternionUpdate(float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz, float del_t, float * q);
+			
+			//float getTime();
+			void convert();
+			float avg(float ang_accel);
+			float RMS(float data);	
+			  
+		private:
+			ros::NodeHandle nh;
+			ros::Publisher imu_pub, accel_pub, ang_pub, mag_pub;
+			float _mag_calibration[3];
+			float _a_res, _g_res, _m_res;
+			float _m_rate;
+			float _a_mode;
+			int _fd;
+	};
+}
 
 #endif
