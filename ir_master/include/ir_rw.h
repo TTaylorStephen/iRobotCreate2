@@ -48,11 +48,12 @@ class ir_rw{
         int byte_read(uint8_t byte, ros::Publisher sensor_state);
        // int read_packets();
         int data_stream();
-        void drive_robot(const std_msgs::Float32MultiArray::ConstPtr& wheel_vel);
-        void get_count(const ros::TimerEvent&); 
-        void get_packets();
-        
-
+        void getCommandVel(const std_msgs::Int32MultiArray::ConstPtr& wheel_vel);
+        void getPackets(const ros::TimerEvent&);
+        void getMeasuredVel(const ir_odom::VelocityM::ConstPtr& v_meas);
+		void driveRobot();
+		void writeBytes(const std_msgs::Int32MultiArray::ConstPtr& byte);
+		
     private:
         ros::NodeHandle nh;
 
@@ -68,11 +69,9 @@ class ir_rw{
 		ros::Publisher fr_light_state;
 		ros::Publisher r_light_state;
 		ros::Publisher voltage_level;
-
-        ros::Publisher get_states;
-		ros::Publisher encoder_state;
-        ros::Subscriber wheel_vel_sub;
-        ros::Timer count_timer;
+		
+        ros::Publisher get_states, encoder_state, motor_control;
+        ros::Subscriber wheel_vel_sub, vel_m_sub, byte_sub;
         ros::Timer packet_timer;
 
 };

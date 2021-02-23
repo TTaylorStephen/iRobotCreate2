@@ -7,21 +7,19 @@ add_compile_options(-std=c++11)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS roscpp std_msgs message_generation)
+find_package(catkin REQUIRED COMPONENTS roscpp std_msgs ir_odom message_generation)
+add_message_files(
+	FILES
+)
 
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
-
-## Generate added messages and services with any dependencies listed here
 generate_messages(
    DEPENDENCIES
    std_msgs 
    roscpp
-    # Or other packages containing msgs
 )
 
 catkin_package(
-	CATKIN_DEPENDS message_runtime
+	CATKIN_DEPENDS message_runtime ir_odom
 )
 
 ## Declare a C++ executable
@@ -30,6 +28,7 @@ catkin_package(
 include_directories(include ${catkin_INCLUDE_DIRS})
 add_executable(${PROJECT_NAME}_node src/ir_master_node.cpp)
 add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES})
 
 find_package(OpenCV)
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -64,6 +63,14 @@ target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIE
 ##     and list every .msg/.srv/.action file to be processed
 ##   * uncomment the generate_messages entry below
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
+
+## Generate added messages and services with any dependencies listed here
+##generate_messages(
+#   DEPENDENCIES
+#   std_msgs 
+#   roscpp
+    # Or other packages containing msgs
+#)
 
 ## Generate messages in the 'msg' folder
 # add_message_files(

@@ -13,6 +13,8 @@
 #include "std_msgs/Float32MultiArray.h"
 #include "ros/ros.h"
 #include <sys/ioctl.h>
+#include <ir_odom/VelocityM.h>
+
 
 #define BAUD_RATE B115200
 int fd; 

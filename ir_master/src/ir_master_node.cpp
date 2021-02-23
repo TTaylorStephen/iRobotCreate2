@@ -3,6 +3,7 @@
 
 //define device to be opened
 const char *create = "/dev/i_robot";
+int count = 0;
 
 ir_setup::ir_setup(){
     init(create);
@@ -12,6 +13,7 @@ ir_setup::ir_setup(){
     usleep(1000000);
     led_set(0,100,200);//2^0=dirt detect, 2^1=spot, 2^2=dock, 2^3=check robot
     usleep(1000000);
+	
 
 }
 
@@ -29,29 +31,30 @@ ir_setup::~ir_setup(){
 ir_rw::ir_rw(){
 
 	//indidual sensors
-	bump_drop_state=nh.advertise<std_msgs::Int32>("/bump",30);
-	l_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/left",30);
-	r_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/right",30);
-	fl_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/front_left",30);
-	fr_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/front_right",30);
-	l_light_state=nh.advertise<std_msgs::Int32>("/light/left",30);
-	fl_light_state=nh.advertise<std_msgs::Int32>("/light/front_left",30);
-	cl_light_state=nh.advertise<std_msgs::Int32>("/light/center_left", 30);
-	cr_light_state=nh.advertise<std_msgs::Int32>("/light/center_right", 30);
-	fr_light_state=nh.advertise<std_msgs::Int32>("/light/front_right", 30);
-	r_light_state=nh.advertise<std_msgs::Int32>("/light/right", 30);
-	voltage_level=nh.advertise<std_msgs::Int32>("/power_status",30);
+	bump_drop_state=nh.advertise<std_msgs::Int32>("/bump", 10);
+	l_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/left", 10);
+	r_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/right", 10);
+	fl_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/front_left", 10);
+	fr_cliff_state=nh.advertise<std_msgs::Int32>("/cliff/front_right", 10);
+	l_light_state=nh.advertise<std_msgs::Int32>("/light/left", 10);
+	fl_light_state=nh.advertise<std_msgs::Int32>("/light/front_left", 10);
+	cl_light_state=nh.advertise<std_msgs::Int32>("/light/center_left", 10);
+	cr_light_state=nh.advertise<std_msgs::Int32>("/light/center_right", 10);
+	fr_light_state=nh.advertise<std_msgs::Int32>("/light/front_right", 10);
+	r_light_state=nh.advertise<std_msgs::Int32>("/light/right", 10);
+	voltage_level=nh.advertise<std_msgs::Int32>("/power_status",10);
 	
-
 	//arrays of sensor data
-	get_states=nh.advertise<std_msgs::Int32MultiArray>("/query_list",30);
-	encoder_state=nh.advertise<std_msgs::Int32MultiArray>("/total_count", 30);
+	get_states=nh.advertise<std_msgs::Int32MultiArray>("/query_list",10);
+	encoder_state=nh.advertise<std_msgs::Float32MultiArray>("/total_count", 10);
 	
 	//subscribes to wheel count and drives robot
-	wheel_vel_sub=nh.subscribe<std_msgs::Float32MultiArray>("/wheel_vel", 30, &ir_rw::drive_robot, this);
+	wheel_vel_sub=nh.subscribe<std_msgs::Int32MultiArray>("/wheel_velocity/commanded", 30, &ir_rw::getCommandVel, this);
+	//vel_m_sub = nh.subscribe<ir_odom::VelocityM>("wheel_velocity/measured", 30, &ir_rw::getMeasuredVel, this);
+	byte_sub=nh.subscribe<std_msgs::Int32MultiArray>("/bytes", 10, &ir_rw::writeBytes, this);
 
-	//timer to request sensor packets every 0.05 seconds
-	//packet_timer=nh.createTimer(ros::Duration(0.01),&ir_rw::get_packets,this);
+	//timer to request sensor packets every 0.02s or 50 times a second, daa is avaiable from stream every 15ms ~66x/sec
+	packet_timer=nh.createTimer(ros::Duration(0.017),&ir_rw::getPackets,this);
 
 }
 
@@ -191,9 +194,9 @@ int ir_setup::led_set(uint8_t bit, uint8_t color, uint8_t intensity){
     return 0;
 }
 
-int ir_setup::direct_drive(float right_v, float left_v){
+int ir_setup::direct_drive(float left_v, float right_v){	//drive robot using given cmd velocity
 
-	short int mm_r=right_v*1000, mm_l=left_v*1000;
+	short int mm_l=left_v, mm_r=right_v;
 	int8_t r_byte[2], l_byte[2];
 
 	//mask high bytes shift 8 bites to the right
@@ -214,22 +217,27 @@ int ir_setup::direct_drive(float right_v, float left_v){
 	return 0;
 }
 
-double t1, t2, tt, dt;
+/*.........................request sensor packets from robot and publish to ros...........................*/
+
 int bump_drop, l_cliff, fl_cliff, r_cliff, fr_cliff, l_light, fl_light, cl_light, cr_light, fr_light, r_light, voltage;
-int l_count, l_count1, r_count, r_count1,delt_l, delt_l1, delt_r, delt_r1, total_count_l, total_count_r, total_count_l1, total_count_r1, dist_l, dist_r;
+int l_count=0,  r_count=0;
+double now=0, last_update=0, dt=0;
+bool start=true;
 
-//Request a list of sensor packets from robot
-int ir_rw::data_stream(){
-
-	//flush stale values from buffer
-	tcflush(fd,TCIOFLUSH);
+int ir_rw::data_stream(){ //Request a list of sensor packets from robot
 	
-	//send bytes to request left and right encoder packets
-	uint8_t command[16]={148,14, L_ENCODER,R_ENCODER,BUMP_DROP,L_CLIFF,FL_CLIFF,FR_CLIFF, R_CLIFF, L_LIGHT,FL_LIGHT,CL_LIGHT,CR_LIGHT,FR_LIGHT,R_LIGHT,CHARGE};
-	if(write(fd, command, sizeof(command))<0){
-		perror("failed to retrieve encoder count packets\n");
+	//intialize packet stream on first iteration
+	if(start==true){
+		tcflush(fd,TCIOFLUSH);
+		//send bytes to request left and right encoder packets
+		uint8_t command[16]={148,14, L_ENCODER,R_ENCODER,BUMP_DROP,L_CLIFF,FL_CLIFF,FR_CLIFF, R_CLIFF, L_LIGHT,FL_LIGHT,CL_LIGHT,CR_LIGHT,FR_LIGHT,R_LIGHT,CHARGE};
+		if(write(fd, command, sizeof(command))<0){
+			perror("failed to retrieve packets\n");
+		}
+		start=false;
 	}
-	//read response
+	
+	//read response (irobot update rate @ ~0.015s)
 	uint8_t response[40];//buffer
 	if(read(fd,response,sizeof(response))<0){
 		perror("failed to read data\n");
@@ -237,7 +245,7 @@ int ir_rw::data_stream(){
 		return -1;
 	}
 	
-	//perform checksum of data and read value
+	//perform checksum of data and read value if passes
 	int sum=0, check_sum=0;
 	if(response[0]==19){
 		for(int i=0; i<sizeof(response); ++i){
@@ -245,72 +253,20 @@ int ir_rw::data_stream(){
 			if(i==39){
 				check_sum=sum;
 			}
-			//view packet as its being received
-			ROS_INFO("byte %d=%d", i, response[i]);
 		}
-		ROS_INFO("masked checksum=%d\n", check_sum & 0xFF);
-		if((check_sum & 0xFF)==0){ //1280 & 0xFF=0
+		//ROS_INFO("masked checksum=%d\n", check_sum & 0xFF);	
+		//if lower byte of checksum=0 read data
+		if((check_sum & 0xFF)==0){    
 		
-			/**********left wheel**********/
-			//save previous iteration
-			l_count1=l_count;
-			delt_l1=delt_l;
+			now = ros::Time::now().toSec();
+			dt=(now-last_update);
+			last_update=now;
+			//ROS_INFO("dt=%3f", dt);    
+			              
 			//typecast left encoder packets to int for handling (4 bytes total, high byte first on each pair)
 			l_count={(int)(response[3]<<8) | (int)(response[4] & 0xFF)}; //left
-			//account for rollover
-			if(l_count-l_count1<-100){
-					l_count1=0;
-			}
-			//calculate total count from zero
-			if(l_count1!=0){
-				delt_l=l_count-l_count1;
-			}
-			//save two counts: one for cummulative(total) and one to reset everytime the wheel stops(dist)
-			total_count_l+=delt_l;
-			dist_l+=delt_l;
-			
-			/**********right wheel**********/
-			//save previous iteration
-			r_count1=r_count;
-			delt_r1=delt_r;
-			
 			//typecast right encoder packets to int for handling (4 bytes total, high byte first on each pair)	
-			r_count={(int)(response[6]<<8) | (int)(response[7] & 0xFF)}; //right
-			//account for rollover
-			if(r_count-r_count1<-100){
-				r_count1=0;
-			}
-			//calculate total count from zero
-			if(r_count1!=0){
-				delt_r=r_count-r_count1;
-			}
-			//save two counts: one for cummulative and one to reset everytime the wheel stops
-			total_count_r+=delt_r;
-			dist_r+=delt_r;	
-			
-			for(int i=0; i<10; i++){
-				if (delt_l==0){
-					dist_l=0; 
-				}
-				if(delt_r==0){
-					dist_r=0;
-				}
-			}
-			
-			//store in vector for ros
-			std::vector<int> wheel_info(4);
-			wheel_info[0]=dist_l;
-			wheel_info[1]=dist_r;
-			wheel_info[2]=total_count_l;
-			wheel_info[3]=total_count_r;
-
-			//ros array for publishing
-			std_msgs::Int32MultiArray total_count;
-			total_count.data=wheel_info;
-
-			//publish count
-			encoder_state.publish(total_count);
-
+			r_count={(int)(response[6]<<8) | (int)(response[7] & 0xFF)}; //right	
 			//define variable for each sensor packet
 			bump_drop=response[9];
 			l_cliff=response[11];
@@ -324,8 +280,20 @@ int ir_rw::data_stream(){
 			fr_light={(int)(response[31]<<8) | (int)(response[32] & 0xFF)};
 			r_light={(int)(response[34]<<8) | (int)(response[35] & 0xFF)};
 			voltage={(int)(response[37]<<8) | (int)(response[38] & 0xFF)};	
-		
+		    
+		    //store in vector for ros
+			std::vector<float> wheel_info(3);
+			wheel_info[0]=l_count;
+			wheel_info[1]=r_count;
+			wheel_info[2]=dt;
+			
+			//ros array for publishing
+			std_msgs::Float32MultiArray total_count;
+			total_count.data=wheel_info;
 
+			//publish count
+			encoder_state.publish(total_count);
+			
 			//store sensor packets ros format
 			std_msgs::Int32 bump_sensor, l_cliff_sensor, fl_cliff_sensor, r_cliff_sensor, fr_cliff_sensor, l_light_sensor, fl_light_sensor, cl_light_sensor, cr_light_sensor, fr_light_sensor, r_light_sensor, volts;
 			bump_sensor.data=bump_drop;
@@ -370,63 +338,65 @@ int ir_rw::data_stream(){
 
 			std_msgs::Int32MultiArray list;
 			list.data=query_list;
-			get_states.publish(list);
-			
-			ROS_INFO("total_encoder left encoder count= %d", total_count_l);
-			ROS_INFO("total_encoder right encoder count= %d", total_count_r);
-			ROS_INFO("delta left encoder= %d", delt_l);
-			ROS_INFO("delta right encoder= %d", delt_r);
-			ROS_INFO("left increment=%d, total left=%d\n", dist_l, total_count_l);
-			ROS_INFO("total left count=%d, total right count=%d\n", l_count, r_count);	
-		}
-		ROS_INFO("checksum=%d\n", check_sum);	
+			get_states.publish(list);	
+		}	
 	}	
-	
-	//flush input and output buffer to ensure everything has been read/written
-	tcflush(fd, TCIOFLUSH);
-	return sum;
+	tcflush(fd,TCIOFLUSH);
+	return 0;
+
 }
 
-//object for initializing robot with pre-defined commands
-ir_setup send_command;
+void ir_rw::getPackets(const ros::TimerEvent&){ 	//request initial stream and read @ intervals set by timer
+	data_stream();		
+}
 
-//call back to send left and right wheel velocities to robot from move_base_node
-float vel_l, vi_l, vel_r, vi_r;
-void ir_rw::drive_robot(const std_msgs::Float32MultiArray::ConstPtr& wheel_vel){
-	
-	//save previous iteration
-	vi_l=vel_l;
-	vi_r=vel_r;
-	
-	//save published velocity
-	vel_l=wheel_vel->data[0];
-	vel_r=wheel_vel->data[1];
-	//ROS_INFO("subscribed left wheel velocity=%f\n",vel_l);
-	
-	//send velocity once
-	if(vi_l != vel_l | vi_r != vel_r){
-		send_command.direct_drive(vel_l,vel_r);
-		printf("velocity l:%3f, velocity r:%3f\n", vel_l, vel_r);
+
+/*............................read cmd vel from publisher and send to robot.............................*/ 
+
+int vleft=0, vright=0, vleft1=0, vright1=0; 
+void ir_rw::getCommandVel(const std_msgs::Int32MultiArray::ConstPtr& vc){	//read data when available
+	vleft=vc->data[0];
+	vright=vc->data[1];	
+}
+
+ir_setup send_command;	//initialize object for sending commands
+void ir_rw::driveRobot(){ 	//send velocity if new velocity has arrived, else keep using previous 
+	if(vleft1!=vleft){
+		send_command.direct_drive(vleft,vright);
+		vleft1=vleft, vright1=vright;
 	}
 }
 
-//request list of packets every ros::Duration(N)
-void ir_rw::get_packets(){
-	data_stream();
-	usleep(50000);
+/*.....................subcribe to byte stream and write any commands that are send......................*/
+
+void ir_rw::writeBytes(const std_msgs::Int32MultiArray::ConstPtr& byte){
+
+	int array_size=byte->data.size();
+	uint8_t command[array_size];
+	for(int i=0; i<array_size;i++){
+		command[i]=byte->data[i];
+		ROS_INFO("bytes to be written=%d\n",command[i]);
+	}
+	if(write(fd, command, sizeof(command))<0){
+		perror("failed to retrieve encoder count packets\n");
+	}
 }
+
+
 
 int main(int argc, char **argv){
 
-
 	ros::init(argc,argv,"serial_query");
-	ir_rw read_robot; //object for reading data packets
+	ir_rw create; //object for reading data packets
 
-	//call subscribers equivalent of ros::spin()
+//	ros::Rate lr(10);
 	while(ros::ok()){
-		read_robot.get_packets();
+		create.driveRobot();
+//		lr.sleep();
 		ros::spinOnce();
+	
 	}
     return 0;
+   	
 }
 
