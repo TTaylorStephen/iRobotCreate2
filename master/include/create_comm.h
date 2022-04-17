@@ -1,22 +1,8 @@
-#ifndef ir_rw_h
-#define ir_rw_h
+#ifndef CREATE_COMM_H
+#define CREATE_COMM_H
 
-#include "std_msgs/String.h"
-#include "std_msgs/Int8.h"
-#include "std_msgs/Int32.h"
-#include "std_msgs/Float32.h"
-#include "std_msgs/Float32MultiArray.h"
-#include "std_msgs/Int32MultiArray.h"
-#include "std_msgs/UInt8MultiArray.h"
-#include "std_msgs/Int16MultiArray.h"
-#include "std_msgs/UInt8.h"
-
-#include <math.h>
-
-#include <opencv2/opencv.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/core.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
+#include "create_headers.h"
+#include "create_config.h"
 
 /*define sensors*/
 #define BUMP_DROP 7 //1
@@ -40,20 +26,28 @@
 #define RESOLUTION 508.8 // counts/rev
 #define BASE_LENGTH 235.0 //mm
 
-
-class ir_rw{
+class CreateConfig;
+class CreateComm{
 
     public: 
-        ir_rw();
-        int byte_read(uint8_t byte, ros::Publisher sensor_state);
-       // int read_packets();
-        int data_stream();
+    
+        CreateConfig* create_ptr;
+        CreateComm();
+        void init(CreateConfig *config);
+        
+        //for reading from create
+        int byteRead(uint8_t byte, ros::Publisher sensor_state);
+        int dataStream();
         void getCommandVel(const std_msgs::Int32MultiArray::ConstPtr& wheel_vel);
         void getPackets(const ros::TimerEvent&);
-        void getMeasuredVel(const ir_odom::VelocityM::ConstPtr& v_meas);
-		void driveRobot();
-		void writeBytes(const std_msgs::Int32MultiArray::ConstPtr& byte);
-		
+        //void getMeasuredVel(const ir_odom::VelocityM::ConstPtr& v_meas);
+        
+        //for writing to create
+        void driveRobot();
+        void writeBytes(const std_msgs::Int32MultiArray::ConstPtr& byte);
+        int direct_drive(float right_v, float left_v);
+    
+    
     private:
         ros::NodeHandle nh;
 
@@ -69,8 +63,9 @@ class ir_rw{
 		ros::Publisher fr_light_state;
 		ros::Publisher r_light_state;
 		ros::Publisher voltage_level;
-		
-        ros::Publisher get_states, encoder_state, motor_control;
+		ros::Publisher get_states, encoder_state;
+        
+        ros::Publisher motor_control;
         ros::Subscriber wheel_vel_sub, vel_m_sub, byte_sub;
         ros::Timer packet_timer;
 
