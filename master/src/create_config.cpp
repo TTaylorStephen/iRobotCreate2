@@ -1,32 +1,37 @@
 #include "create_config.h"
 
 //define device to be opened
-const char *create = "/dev/create";
-int count = 0;
+//const char *create = "/dev/create";
 
-CreateConfig::CreateConfig(){
+CreateConfig::CreateConfig(const char *create){
     configure(create);
 }
 
 CreateConfig::~CreateConfig(){
-    usleep(1000000);
-    c_ptr->direct_drive(0,0); //stop motion
-    usleep(1000000);
-    stop_io(); //stop communication
-    usleep(1000000);
-    off(); //turn off
+    usleep(10000);
+    c_ptr->directDrive(0,0); // stop motion
+    usleep(10000);
+	modeSet(3);				 // activate passive mode 
+	usleep(10000);
+	ledSet(0,0,0); 			 // off LEDs -> 2^0=dirt detect, 2^1=spot, 2^2=dock, 2^3=check robot
+    usleep(10000);
+	stopIO(); 
+    usleep(10000);
+    off(); 
 	//reset();
-    close(fd); // close port
+	tcflush(fd,TCIOFLUSH);
+    close(fd); 
 }
 
 void CreateConfig::init(CreateComm* comm){
 	c_ptr=comm;
-	start_io();
-    usleep(1000000);
-    mode_set(2);
-    usleep(1000000);
-    led_set(0,100,200);//2^0=dirt detect, 2^1=spot, 2^2=dock, 2^3=check robot
-    usleep(1000000);
+	startIO();
+    usleep(100000);
+    modeSet(2);
+    usleep(100000);
+    ledSet(2,60,200);
+    setBanner({70,85,67,75});
+	usleep(100000);
 }
 
 int CreateConfig::configure(const char *device){
@@ -77,7 +82,7 @@ int CreateConfig::configure(const char *device){
 }
 
 //open IO for communication; also sets to passive mode
-int CreateConfig::start_io(){
+int CreateConfig::startIO(){
     uint8_t command[1]={128};
     if(write(fd, command, sizeof(command))<0){
         perror("could not start open interface\n");
@@ -87,7 +92,7 @@ int CreateConfig::start_io(){
 }
 
 //closes IO communication
-int CreateConfig::stop_io(){
+int CreateConfig::stopIO(){
 	uint8_t command[2]={128, 173};
 	if(write(fd, command, sizeof(command))<0){
 		perror("robot failed to close I/O ");
@@ -119,7 +124,7 @@ int CreateConfig::reset(){
 }
 
 //set operating mode to either safe, full, or passive
-int CreateConfig::mode_set(int mode){
+int CreateConfig::modeSet(int mode){
 
 	 //safe mode
 	if(mode==1){
@@ -155,7 +160,7 @@ int CreateConfig::mode_set(int mode){
 }
 
 //set LEDs to desired color and intensity
-int CreateConfig::led_set(uint8_t bit, uint8_t color, uint8_t intensity){
+int CreateConfig::ledSet(uint8_t bit, uint8_t color, uint8_t intensity){
     uint8_t command[4]={139, bit, color, intensity};
     if(write(fd, command, sizeof(command))<0){
         perror("failed to set LED state");
@@ -165,4 +170,14 @@ int CreateConfig::led_set(uint8_t bit, uint8_t color, uint8_t intensity){
     return 0;
 }
 
+
+int CreateConfig::setBanner(std::vector<uint8_t> word){
+	
+	uint8_t command[9]={164, word[0], word[1], word[2], word[3]};
+	if(write(fd, command, sizeof(command))<0){
+		perror("failed to write banner");
+		return -1;	
+	}
+	return 0;
+}
 

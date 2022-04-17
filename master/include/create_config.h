@@ -16,14 +16,18 @@ class CreateConfig{
         int fd; 
         int configure(const char* device);
         void init(CreateComm* comm);
-        int start_io();
-        int stop_io();
+        int startIO();
+        int stopIO();
         int off();
         int reset();
-        int led_set(uint8_t bit, uint8_t color, uint8_t intensity);
-        int mode_set(int mode); //1=safe, 2=full, 3=passive 
-        CreateConfig();
+        int ledSet(uint8_t bit, uint8_t color, uint8_t intensity);
+        int setBanner(std::vector<uint8_t> word);
+        int modeSet(int mode); //1=safe, 2=full, 3=passive 
+        int setBanner();
+        CreateConfig(const char *create);
         ~CreateConfig();
+
+    private:
 };
 
 #endif 

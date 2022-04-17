@@ -1,8 +1,4 @@
-#include "create_comm.h"
-
-CreateComm::CreateComm(){
-}
-
+#include "create_config.h"
 
 void CreateComm::init(CreateConfig* config){
 	create_ptr=config;
@@ -182,7 +178,7 @@ void CreateComm::writeBytes(const std_msgs::Int32MultiArray::ConstPtr& byte){
 }
 
 
-int CreateComm::direct_drive(float left_v, float right_v){	//drive robot using given cmd velocity
+int CreateComm::directDrive(float left_v, float right_v){	//drive robot using given cmd velocity
 
 	short int mm_l=left_v, mm_r=right_v;
 	int8_t r_byte[2], l_byte[2];
@@ -214,7 +210,10 @@ void CreateComm::getCommandVel(const std_msgs::Int32MultiArray::ConstPtr& vc){	/
 
 void CreateComm::driveRobot(){ 	//send velocity if new velocity has arrived, else keep using previous 
 	if(vleft1!=vleft){
-		direct_drive(vleft,vright);
+		directDrive(vleft,vright);
 		vleft1=vleft, vright1=vright;
 	}
+}
+
+CreateComm::CreateComm(){
 }

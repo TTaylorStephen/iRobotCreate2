@@ -2,8 +2,9 @@
 
 int main(int argc, char **argv){
 
+	const char* create_id="/dev/create";
 	ros::init(argc,argv,"serial_query");
-	CreateConfig config; //object for reading data packets
+	CreateConfig config(create_id); 
 	CreateComm comm;
 
 	config.init(&comm);

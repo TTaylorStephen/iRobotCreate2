@@ -30,7 +30,6 @@ class CreateConfig;
 class CreateComm{
 
     public: 
-    
         CreateConfig* create_ptr;
         CreateComm();
         void init(CreateConfig *config);
@@ -45,30 +44,17 @@ class CreateComm{
         //for writing to create
         void driveRobot();
         void writeBytes(const std_msgs::Int32MultiArray::ConstPtr& byte);
-        int direct_drive(float right_v, float left_v);
-    
+        int directDrive(float right_v, float left_v);
     
     private:
         ros::NodeHandle nh;
-
 		ros::Publisher bump_drop_state; 
-		ros::Publisher l_cliff_state;
-        ros::Publisher r_cliff_state;
-		ros::Publisher fl_cliff_state; 
-		ros::Publisher fr_cliff_state;
-        ros::Publisher l_light_state;
-        ros::Publisher fl_light_state;
-		ros::Publisher cl_light_state;
-		ros::Publisher cr_light_state;
-		ros::Publisher fr_light_state;
-		ros::Publisher r_light_state;
-		ros::Publisher voltage_level;
+		ros::Publisher l_cliff_state, r_cliff_state, fl_cliff_state, fr_cliff_state;
+        ros::Publisher l_light_state, r_light_state, fl_light_state, cl_light_state,fr_light_state, cr_light_state;
+		ros::Publisher voltage_level, motor_control;
 		ros::Publisher get_states, encoder_state;
-        
-        ros::Publisher motor_control;
         ros::Subscriber wheel_vel_sub, vel_m_sub, byte_sub;
         ros::Timer packet_timer;
-
 };
 
 #endif 
