@@ -1,0 +1,455 @@
+#include "mpu9250.h"
+
+//initialize i2c communication with board 
+int adc::mpu9250::imuInit(const char *imu_num){ 
+	
+	fd = open(imu_num,O_RDWR);
+	if(fd < 0){
+		perror("issue initializing i2c comm\n"); //check for error
+		return -1;
+	}
+	tcflush(fd,TCIOFLUSH);//flush buffer
+	delay(100);
+	return fd;
+}
+
+
+
+//reset MPU9250
+void adc::mpu9250::reset(){
+	writeByte(IMU_ADD, PWR_MGMT_1, 0x80);
+	delay(100);
+}
+
+
+
+//get resolution for accerometer - possible option +-2G, 4G, 8G, 16G for 16 bit FS reading
+//returns value in G's
+double adc::mpu9250::getAres(uint8_t ascale){
+	switch(ascale){
+		case AFS_2G: 
+			_a_res = 2.0/32768.0; //peak to peak @ +-250, resolution is 2^16=65536 bc 16 bit data
+			return _a_res;
+			break;
+		case AFS_4G: 
+			_a_res = 4.0/32768.0;
+			return _a_res;
+			break;
+		case AFS_8G: 
+			_a_res = 8.0/32768.0;
+			return _a_res;
+			break;
+		case AFS_16G: 
+			_a_res = 16.0/32768.0;
+			return _a_res;
+			break;
+	}
+}	
+	
+	
+	
+//set resolution for gyro - possible options = +-250dps, 500dps, 1000dps, 2000dps for 16 bit FS reading 
+//returns value deg/sec 
+double adc::mpu9250::getGres(uint8_t gscale){
+	switch(gscale){
+		case GFS_250DPS: 
+			_g_res = 250.0/32768.0; //peak to peak @ +-250, resolution is 2^16=65536 bc 16 bit data
+			return _g_res;
+			break;
+		case GFS_500DPS: 
+			_g_res = 500.0/32768.0;
+			return _g_res;
+			break;
+		case GFS_1000DPS: 
+			_g_res = 1000.0/32768.0;
+			return _g_res;
+			break;
+		case GFS_2000DPS: 
+			_g_res = 2000.0/32768.0;
+			return _g_res;
+			break;
+	}
+}	
+
+
+
+//get resolution for magnetometer - possible option = 14 bits or 16 bits per FS reading
+//returns value in uT/LSB, conversion note: 0.01G = 1uT
+double adc::mpu9250::getMres(uint8_t mscale){
+	switch(mscale){
+		case MFS_14BITS: 
+			_m_res = 0.01*4912.0/8192.0; //peak to peak range +-4912 uT, resolution is 2^14=(8192*2)=16384
+			return _m_res;
+			break;
+		case MFS_16BITS:
+			_m_res = 0.01*4912.0/32768.0; //peak to peak range +-4912 uT, resolution is 2^16=(32768*2)=65536 
+			return _m_res;
+			break;
+	}
+}	
+	
+//calibrate mpu9250
+//read in n number of samples and average for bias
+void adc::mpu9250::calibrateMPU(double a_res, double g_res, int sample_size){
+	
+	std::vector<double> mpu_Total(6);
+	int16_t mpu_Data[7];
+	int n=0;
+	std::cout << std::setprecision(16) << std::fixed;
+	
+	while(n<sample_size){
+		mpu9250ReadAll(mpu_Data);
+		for(int ii=0; ii<7; ++ii){
+			if(ii<3){
+				mpu_Total[ii]+=((double)mpu_Data[ii]*a_res);
+			}
+			else if(ii>3){
+				mpu_Total[ii-1]+=((double)mpu_Data[ii]*g_res);
+			}	
+		}
+		++n;
+	}
+	
+	ROS_INFO("\n ax_bias=%3.10f\n ay_bias=%3.10f\n az_bias=%3.10f\n gx_bias=%3.10f\n gy_bias=%3.10f\n gz_bias=%3.10f\n", mpu_Total[0]/sample_size, mpu_Total[1]/sample_size, mpu_Total[2]/sample_size, mpu_Total[3]/sample_size, mpu_Total[4]/sample_size, mpu_Total[5]/sample_size);
+	
+}
+
+void adc::mpu9250::calibrateAK8963(double m_res, int sample_size){
+		
+		std::vector<int16_t> raw_ak(3);
+		std::vector<double> ak(3);
+		int n=0, total_n=sample_size;
+		
+		while(n<sample_size){
+			magRead(raw_ak);								//read samples 
+			for(int ii=0; ii<raw_ak.size(); ++ii){			
+				ak.at(ii)=m_res*(double)raw_ak.at(ii);		//convert each set to gauss
+			}
+			sphereFit(ak);									//fit to sphere
+		}
+}
+
+//initialize mpu with original or configured settings
+void adc::mpu9250::mpuInit(uint8_t g_scale, uint8_t a_scale, uint8_t a_rate){
+	//general configuration for board	
+	writeByte(IMU_ADD, PWR_MGMT_1, 0x00); //enable all sensors
+	delay(100);
+	writeByte(IMU_ADD, PWR_MGMT_1, 0x01); //2nd bit sets PLL (best clock source) 
+	delay(200);
+	writeByte(IMU_ADD, CONFIG, 0x03); //dlpf_cfg = bits 2:0 = 011(3) = 0x03
+	writeByte(IMU_ADD, SMPLRT_DIV, a_rate); //set sample rate to 200 Hz 
+	
+	//configure gyro
+	 //get desired resolution
+	uint8_t c = readByte(IMU_ADD, GYRO_CONFIG); //get current configuration
+	c = c & ~0x02; //clears Fchoice bits 00000011=0x02
+	c = c & ~0x18; //clears full scale settings 00011000=0x18
+	c = c | g_scale << 3; //set full scale range by shifting 3 bits left
+	writeByte(IMU_ADD, GYRO_CONFIG, c);
+	
+	//configure accelerometer fs range
+	//get desired resolution
+	c = readByte(IMU_ADD, ACCEL_CONFIG); //get current accelerometer configuration
+	c = c & ~0x18; //clear FS accel settings 
+	c = c | a_scale << 3; //bitwise or to set new FS range
+	writeByte(IMU_ADD, ACCEL_CONFIG,c);
+	
+	//set accelerometer sample rate config
+	c = readByte(IMU_ADD, ACCEL_CONFIG2);
+	c = c & ~0x0F; //clear lower 4 bits for accel_fchoiceb and a_dlpfg 
+	c = c & 0x03; //set a_dlpfg to 3 for 41hz bandwidth and 1000kHz sample rate
+	writeByte(IMU_ADD, ACCEL_CONFIG2, c);
+	
+	//set pins to high(00000010=0x10) and enable raw sensor data ready (bit 0 00000001=0x01) interrupt
+	writeByte(IMU_ADD, INT_PIN_CFG, 0x10);
+	writeByte(IMU_ADD, INT_ENABLE, 0x01);	
+	delay(100);
+	
+	writeByte(IMU_ADD, USER_CTRL, 0x20); //enable I2C master mode
+	writeByte(IMU_ADD, I2C_MST_CTRL, 0x1D); //bit 4 controls i2c master's transition from one slave to next if set to 1 there is a pause b/w reads
+											 //if set to 0 there is a reset inbetween reads, dec 13=1101 for bits [3:0] 
+	writeByte(IMU_ADD, I2C_MST_DELAY_CTRL, 0x81); //use blocking data retrieval and enable delay for mag sample rate mismatch
+	writeByte(IMU_ADD, I2C_SLV4_CTRL, 0x01); //delay mag data retriveal to once every other accel/gyro data sample	
+}	
+
+
+//get accelorometer and gyroscope address (should return 0x71)
+uint8_t adc::mpu9250::idMPU9250(){ 
+	uint8_t address=readByte(IMU_ADD, 0x75);
+	ROS_INFO("MPU9250 address = 0x%X\n", address);
+	return address;
+}
+
+
+
+void adc::mpu9250::mpu9250ReadAll(int16_t *destination){
+	
+	uint8_t raw_data[14] = {0}; 
+	readBytes(IMU_ADD, ACCEL_XOUT_H, 14, &raw_data[0]); //read the 14 raw data registers into a signed 16-bit value
+	destination[0] = ((int16_t)raw_data[0]  << 8) | raw_data[1]; //acceleration
+	destination[1] = ((int16_t)raw_data[2]  << 8) | raw_data[3]; 
+	destination[2] = ((int16_t)raw_data[4]  << 8) | raw_data[5]; 
+	destination[3] = ((int16_t)raw_data[6]  << 8) | raw_data[7]; //temperature
+	destination[4] = ((int16_t)raw_data[8]  << 8) | raw_data[9]; //gyroscope 
+	destination[5] = ((int16_t)raw_data[10] << 8) | raw_data[11]; 
+	destination[6] = ((int16_t)raw_data[12] << 8) | raw_data[13]; 
+}
+
+
+
+int16_t adc::mpu9250::tempRead(){
+
+	int16_t temp_raw; 
+	float temp_c, temp_f;
+	uint8_t raw_data[2];
+	readBytes(IMU_ADD,TEMP_OUT_H,2,&raw_data[0]);
+	temp_raw = ((int16_t)raw_data[0] << 8) | raw_data[1];
+	return temp_raw;
+}
+
+
+	
+void adc::mpu9250::accelRead(int16_t *destination){
+		
+		uint8_t raw_data[6] = {0};	
+		//read xyz acceleration into array passed to function
+		readBytes(IMU_ADD, ACCEL_XOUT_H, 6, &raw_data[0]); 
+		destination[0] = ((int16_t)raw_data[0] << 8) | raw_data[1];
+		destination[1] = ((int16_t)raw_data[2] << 8) | raw_data[3];
+		destination[2] = ((int16_t)raw_data[4] << 8) | raw_data[5];
+}
+
+
+
+void adc::mpu9250::gyroRead(int16_t *destination){
+	
+	uint8_t gyro_raw[6]={0};
+	//read x, y, z angular values -> read into gyro_raw starting at gyro_xout_h until all 6 bytes read`
+	readBytes(IMU_ADD, GYRO_XOUT_H, 6, &gyro_raw[0]);
+	destination[0]=((int16_t)gyro_raw[0] << 8) | gyro_raw[1];
+	destination[1]=((int16_t)gyro_raw[2] << 8) | gyro_raw[3];
+	destination[2]=((int16_t)gyro_raw[4] << 8) | gyro_raw[5];
+}
+
+
+
+/*........................................................................................................
+					Access Magnetometer
+........................................................................................................*/
+
+
+//echo register address, should read 0x48
+uint8_t adc::mpu9250::idAK8963(){
+	writeByte(IMU_ADD, USER_CTRL, 0x20); //enable master mode, 0010 0000
+	writeByte(IMU_ADD, I2C_MST_CTRL, 0x0D); //set multi-master i2c, 0000 1101
+	writeByte(IMU_ADD, I2C_SLV0_ADD, AK8963_ADD | 0x80); //set slave address and set to read 0x80=i2c_slv_en, 0x81=enable slave and read one byte 1000 0001
+	writeByte(IMU_ADD, I2C_SLV0_REG, AK8963_WHO_AM_I); //write magnetometer id register as place to begin data transfer
+	writeByte(IMU_ADD, I2C_SLV0_CTRL, 0x81); //write i2c_slv0_en to enable reading data from slave (always EXT_SENS_DATA_00 for i2c slave 0) at desired sample rate. read one byte.
+	delay(10);
+	uint8_t address=readByte(IMU_ADD, EXT_SENS_DATA_00);//read data from slave on IMU
+	ROS_INFO("AK8963 address = 0x%X\n", address);
+	return address;
+}
+
+
+
+//initialize magnetometer
+void adc::mpu9250::initAKslave(uint8_t m_scale, uint8_t m_rate, float *mag_calibration){
+
+	uint8_t raw_data[3]; // x/y/z calibration data stored here 
+	
+	
+	writeByte(IMU_ADD, I2C_SLV0_ADD, AK8963_ADD);//set the i2c address to ak8963 and set for write
+	writeByte(IMU_ADD, I2C_SLV0_REG, AK_CNTL2); //i2c slave 0 register from where to begin data transfer
+	writeByte(IMU_ADD, I2C_SLV0_DO, 0X01); //reset ak8963
+	writeByte(IMU_ADD, I2C_SLV0_CTRL, 0x81); //enable i2c and write one byte
+	delay(50);
+	
+	writeByte(IMU_ADD, I2C_SLV0_ADD, AK8963_ADD);//set the i2c address to ak8963 and set for write
+	writeByte(IMU_ADD, I2C_SLV0_REG, AK_CNTL); //i2c slave 0 register from where to begin data transfer
+	writeByte(IMU_ADD, I2C_SLV0_DO, 0x00); //power dowm magnetometer
+	writeByte(IMU_ADD, I2C_SLV0_CTRL, 0x81); //enable i2c and write one byte
+	delay(50);	
+	
+	writeByte(IMU_ADD, I2C_SLV0_ADD, AK8963_ADD);//set the i2c address to ak8963 and set for write
+	writeByte(IMU_ADD, I2C_SLV0_REG, AK_CNTL); //i2c slave 0 register from where to begin data transfer
+	writeByte(IMU_ADD, I2C_SLV0_DO, 0x0F); //enter fuse mode
+	writeByte(IMU_ADD, I2C_SLV0_CTRL, 0x81); //enable i2c and write one byte
+	delay(50);
+	
+	writeByte(IMU_ADD, I2C_SLV0_ADD, AK8963_ADD | 0x80); //set i2c slave address and set for read
+	writeByte(IMU_ADD, I2C_SLV0_REG, AK_ASAX); //i2c slave register from where to begin data transfer
+	writeByte(IMU_ADD, I2C_SLV0_CTRL, 0x83); //enable data transfer and write 3 bytes
+	delay(50);
+	readBytes(IMU_ADD, EXT_SENS_DATA_00, 3, &raw_data[0]); // read xyz calibration values
+	mag_calibration[0] = (float)(raw_data[0]-128)/256.0f + 1.0f; //return x_axis sensitivity adjustment values 
+	mag_calibration[1] = (float)(raw_data[1]-128)/256.0f + 1.0f;
+	mag_calibration[2] = (float)(raw_data[2]-128)/256.0f + 1.0f;
+	_mag_calibration[0] = mag_calibration[0]; //saves input variable as private class variable for use in program
+	_mag_calibration[1] = mag_calibration[1];
+	_mag_calibration[2] = mag_calibration[2];
+	_m_rate = m_rate;
+
+	writeByte(IMU_ADD, I2C_SLV0_ADD, AK8963_ADD);//set the i2c address to ak8963 and set for write
+	writeByte(IMU_ADD, I2C_SLV0_REG, AK_CNTL);   //i2c slave 0 register from where to begin data transfer
+	writeByte(IMU_ADD, I2C_SLV0_DO, 0x00);       //power_down magnetometer
+	writeByte(IMU_ADD, I2C_SLV0_CTRL, 0x81);     //enable i2c and write one byte
+	delay(50);
+	
+	writeByte(IMU_ADD, I2C_SLV0_ADD, AK8963_ADD);//set the i2c address to ak8963 and set for write
+	writeByte(IMU_ADD, I2C_SLV0_REG, AK_CNTL);   //i2c slave 0 register from where to begin data transfer
+	
+	//configure for continuous read at highest resolution 
+	writeByte(IMU_ADD, I2C_SLV0_DO, m_scale << 4 | m_rate); //set magnetometer data res and sample odr
+	writeByte(IMU_ADD, I2C_SLV0_CTRL, 0x81); 				 //enable i2c and transfer 1 byte
+	delay(50);
+	
+	writeByte(IMU_ADD, I2C_SLV0_ADD, AK8963_ADD | 0x80);//set i2c slave address of AK and set for read
+	writeByte(IMU_ADD, I2C_SLV0_REG, AK_CNTL);       //i2c slave 0 register address from where to begin data transfer
+	writeByte(IMU_ADD, I2C_SLV0_CTRL, 0x81);             //enable i2c and transfer 1 byte
+	delay(50);
+}
+
+
+//read from the magnetometer
+void adc::mpu9250::magRead(std::vector<int16_t> &destination){
+
+	uint8_t mag_raw[7];
+	//writeByte(IMU_ADD, I2C_SLV0_ADD, 0x00);//set slave address to read
+	writeByte(IMU_ADD, I2C_SLV0_ADD, AK8963_ADD | 0x80);//set slave address to read
+	writeByte(IMU_ADD, I2C_SLV0_REG, AK_HXL);	
+	writeByte(IMU_ADD, I2C_SLV0_CTRL, 0x87);
+	delay(2);
+	readBytes(IMU_ADD, EXT_SENS_DATA_00, 7, &mag_raw[0]);
+	
+	uint8_t c = mag_raw[6]; //end data transfer by reading St2 register
+	if(!(c & 0x08)){   //check for magnetic overflow is set otherwise read in values
+		destination[0]=((int16_t)mag_raw[1] << 8) | mag_raw[0]; //read high byte onto low byte
+		destination[1]=((int16_t)mag_raw[3] << 8) | mag_raw[2];
+		destination[2]=((int16_t)mag_raw[5] << 8) | mag_raw[4];
+		/*for(int i = 0; i<3; i++){
+			ROS_INFO("raw readings from Magnetometer at i=%d: %d", i, destination[i]);
+		}*/
+	}
+	
+}
+
+
+
+/*........................................................................................................
+    Generic Functions / Reading and Writing to Jetson Nano using linux/i2c-dev.h and i2c/smbus.h
+........................................................................................................*/
+
+
+uint8_t adc::mpu9250::readByte(uint8_t dev_add, uint8_t reg_add){
+/*specify device address to communicate with*/
+	if(ioctl(fd,I2C_SLAVE,dev_add)<0){
+		perror("failed to add icm20948\n");
+		return -1;
+	}	
+	uint8_t write_data[1];
+	write_data[0]=reg_add;
+	if(write(fd,write_data,1)!=1){
+		perror("failed to request data\n");
+	}
+	uint8_t response[1];
+	if(read(fd,response,1)!=1){
+		perror("failed to read data\n");
+		return -1;
+	}
+	tcflush(fd, TCIOFLUSH);
+	return response[0];
+}
+
+uint8_t adc::mpu9250::readBytes(uint8_t dev_add, uint8_t reg_add, uint8_t num_bytes, uint8_t * buf){
+/*specify device address to communicate with*/
+	if(ioctl(fd,I2C_SLAVE,dev_add)<0){
+		perror("failed to add icm20948\n");
+		return -1;
+	}
+		
+	uint8_t write_data[1];
+	write_data[0]=reg_add;
+	if(write(fd,write_data,1)!=1){
+		perror("write multiple bytes failed:\n");
+		return -1;
+	}
+
+	uint8_t response[num_bytes];
+	if(read(fd,response,num_bytes)<0){
+		perror("error reasing multiple bytes:");
+		return -1;
+	}
+	
+	for(int i=0; i<num_bytes; i++){
+		//printf("multiple bytes read = %X\n\n", response[i]);	
+		buf[i]=response[i];
+	}
+	tcflush(fd, TCIOFLUSH);
+	return 0;
+}
+
+uint8_t adc::mpu9250::writeByte(uint8_t dev_add, uint8_t reg_add, uint8_t data){
+	if(ioctl(fd,I2C_SLAVE,dev_add)<0){
+		perror("failed to add icm20948\n");
+		return -1;
+	}
+	uint8_t data_write[2];
+	data_write[0]=reg_add;
+	data_write[1]=data;
+	if(write(fd,data_write,2)!=2){
+		perror("failed to write to device\n");
+		return -1;
+	}
+	tcflush(fd, TCIOFLUSH);
+}
+
+//pauses program for designated time in ms - made to correspond with arduino and help readability		
+void delay(auto time_ms){ 
+	usleep(time_ms*1000);
+}
+
+/*void adc::mpu9250::low_pass(std::vector<float> &imu_data){
+	float alpha = 0.15
+	std::vector<float> lp_data(imu_data.size());  
+	for(int i = 0; i<imu_data.size(); ++i){
+		lp_data[i] = (1-alpha)*lp_data[i]+alpha*imu_data[i];
+		ROS_INFO("filtered value at i=%d is %3f\n", lp_data[i]);
+	}
+}*/
+
+
+/*******************************************************************************************************************/
+/*        adapted from mkriswiner AK896t3 as slave to MPU9250 driver - for use with jetson nano			           */ 
+/*        original source code found at guthub.com/kriswiner/MPU9250/tree/master/AK8963_as_slave                   */ 
+/*******************************************************************************************************************/  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

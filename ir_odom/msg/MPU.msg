@@ -1,0 +1,16 @@
+#this is all values derived from imu 
+
+float64 ax
+float64 ay
+float64 az
+float64 gx
+float64 gy
+float64 gz
+float64 mx
+float64 my
+float64 mz
+float64 pitch
+float64 roll
+float64 yaw
+
+
