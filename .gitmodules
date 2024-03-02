@@ -1,3 +1,3 @@
-[submodule "freenect_stack"]
-	path = freenect_stack
-	url = https://github.com/ros-drivers/freenect_stack.git
+[submodule "ws/src/kinect_ros2"]
+	path = ws/src/kinect_ros2
+	url = https://github.com/fadlio/kinect_ros2.git
