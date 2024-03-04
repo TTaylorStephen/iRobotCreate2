@@ -1,3 +1,6 @@
 [submodule "ws/src/kinect_ros2"]
 	path = ws/src/kinect_ros2
 	url = https://github.com/fadlio/kinect_ros2.git
+[submodule "lib/libfreenect"]
+	path = lib/libfreenect
+	url = https://github.com/OpenKinect/libfreenect.git
